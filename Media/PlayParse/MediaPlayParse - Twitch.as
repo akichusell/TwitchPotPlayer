@@ -1,4 +1,4 @@
-﻿/*
+/*
 	This is the source code of Twitch media parse extension.
 	Copyright github.com/23rd, 2018-2020.
 */
@@ -15,6 +15,8 @@
 //	array<dictionary> PlayitemParse(const string &in)	-> parse playitem
 // 	bool PlaylistCheck(const string &in)				-> check playlist
 //	array<dictionary> PlaylistParse(const string &in)	-> parse playlist
+
+bool customize = true;
 
 string GetTitle() {
 	return "Twitch";
@@ -66,6 +68,19 @@ class QualityListItem {
 		ret["is360"] = is360;
 		return ret;
 	}
+
+	void printString() {
+		HostPrintUTF8("url = " + url);
+		HostPrintUTF8("quality = " + quality);
+		HostPrintUTF8("qualityDetail = " + qualityDetail);
+		HostPrintUTF8("resolution = " + resolution);
+		HostPrintUTF8("bitrate = " + bitrate);
+		HostPrintUTF8("format = " + format);
+		HostPrintUTF8("itag = " + itag);
+		HostPrintUTF8("fps = " + fps);
+		HostPrintUTF8("type3D = " + type3D);
+		HostPrintUTF8("is360 = " + is360);
+	}
 };
 
 class Config {
@@ -94,6 +109,8 @@ string audioOnlyRaw = "audio_only";
 string audioOnlyRawVod = "Audio Only";
 string audioOnlyGood = "— Audio Only";
 
+
+
 Config ReadConfigFile() {
 	Config config;
 	config.fullConfig = HostFileRead(HostFileOpen("Extension\\Media\\PlayParse\\config.ini"), 500);
@@ -113,7 +130,7 @@ Config ReadConfigFile() {
 string GetAppAccessToken() {
 	if (!ConfigData.useOwnCredentials) {
 		ConfigData.clientID = "g5zg0400k4vhrx2g6xi4hgveruamlv";
-		return "v4ks0wxfnsjzp7uwrcf8niiqwj64jy";
+		return "6jftlp4naa4e7esxe3favcmjfno2qw";
 	}
 	if (ConfigData.clientID == "" || ConfigData.clientSecret == "") {
 		return "";
@@ -156,8 +173,9 @@ JsonValue ParseJsonFromRequest(string json) {
 }
 
 JsonValue SendTwitchAPIRequest(string request) {
+	string v5 = (request.find("kraken") > 0) ? "\naccept: application/vnd.twitchtv.v5+json" : "";
 	string helix = (request.find("helix") > 0) ? "\nAuthorization: Bearer " + Authorization : "";
-	string header = "Client-ID: " + ConfigData.clientID + helix;
+	string header = "Client-ID: " + ConfigData.clientID + v5 + helix;
 	if (!IsTwitch) {
 		header = "";
 	}
@@ -181,7 +199,7 @@ JsonValue SendGraphQLRequest(string request) {
 		"",
 		headers,
 		request);
-	HostPrintUTF8("GQL JSON");
+	HostPrintUTF8("JSON");
 	HostPrintUTF8(json);
 	return ParseJsonFromRequest(json)["data"];
 }
@@ -240,30 +258,6 @@ string PlaybackTokenBodyRequest(string function, string firstParameter) {
 	return s;
 }
 
-string NielsenContentMetadataBodyRequest(string vodId) {
-	string hash = "2dbf505ee929438369e68e72319d1106bb3c142e295332fac157c90638968586";
-	string s = "";
-	s += '{';
-	s += '    "operationName":"NielsenContentMetadata",';
-	s += '    "variables": {';
-	s += '        "isCollectionContent":false,';
-	s += '        "isLiveContent":false,';
-	s += '        "isVODContent":true,';
-	s += '        "collectionID":"",';
-	s += '        "login":"",';
-	s += '        "vodID": "' + vodId + '"';
-	s += '    },';
-	s += '    "extensions": {';
-	s += '        "persistedQuery": {';
-	s += '            "version": 1,';
-	s += '            "sha256Hash": "' + hash + '"';
-	s += '        }';
-	s += '    }';
-	s += '}';
-
-	return s;
-}
-
 JsonValue LiveTokenRequest(string nickname) {
 	string function = "streamPlaybackAccessToken";
 	return SendGraphQLRequest(PlaybackTokenBodyRequest(
@@ -286,11 +280,6 @@ string GetGameFromId(string id) {
 	return "";
 }
 
-string GetGameFromVodId(string vodId) {
-	string body = NielsenContentMetadataBodyRequest(vodId);
-	return SendGraphQLRequest(body)["video"]["game"]["displayName"].asString();
-}
-
 int GetITag(const string &in qualityName) {
 	array<string> qualities = {audioOnlyGood, "160p", "360p", "480p", "720p", "720p60", "1080p", "1080p60"};
 	qualities.reverse();
@@ -298,7 +287,7 @@ int GetITag(const string &in qualityName) {
 		return 1;
 	}
 	int indexQuality = qualities.find(qualityName);
-	if (indexQuality > 0) {
+	if (indexQuality >= 0) {
 		return indexQuality + 2;
 	} else {
 		return -1;
@@ -364,7 +353,7 @@ string ClipsParse(const string &in path, dictionary &MetaData, array<dictionary>
 }
 
 string PlayitemParse(const string &in path, dictionary &MetaData, array<dictionary> &QualityList) {
-	// HostOpenConsole();
+	//HostOpenConsole();
 
 	// Any twitch API demands client id in header.
 	string headerClientId = "Client-ID: " + ConfigData.clientID_M3U8;
@@ -383,8 +372,11 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		vodId = HostRegExpParse(path, "twitch.tv/videos/([0-9]+)");
 	}
 	HostPrintUTF8(vodId);
-// 	https://usher.ttvnw.net/vod/
-//  https://api.twitch.tv/api/vods/
+	
+	/*
+	https://usher.ttvnw.net/vod/
+	https://api.twitch.tv/api/vods/
+	*/
 
 	// Parameter p should be random number.
 	string m3u8Api = (isVod
@@ -404,7 +396,9 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	// string idChannel = HostRegExpParse(jsonToken, ":([0-9]+)");
 	JsonValue stream = SendTwitchAPIRequest(ApiBase + (!isVod
 		? "/helix/streams?user_login=" + nickname
-		: "/helix/videos?id=" + vodId));
+		: "/kraken/videos/v" + vodId));
+		// Helix API can't give to us game_id from video_id.
+		//: "videos?id=" + vodId));
 	string titleStream;
 	string displayName;
 	string views = "";
@@ -414,13 +408,8 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		JsonValue item = stream[0];
 		titleStream = item["title"].asString();
 		displayName = item["user_name"].asString();
-		// Helix API can't give to us game_id from video_id.
-		if (isVod) {
-			game = " | " + GetGameFromVodId(vodId);
-		} else {
-			gameId = item["game_id"].asString();
-		}
-		HostPrintUTF8("Game ID: " + gameId);
+		gameId = item["game_id"].asString();
+		HostPrintUTF8(gameId);
 		views = item[isVod ? "view_count" : "viewer_count"].asString();
 	} else if (stream.isObject()) { // This is legacy VOD.
 		titleStream = stream["title"].asString();
@@ -429,7 +418,7 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 		game = " | " + stream["game"].asString();
 	}
 	if (ConfigData.gameInTitle || ConfigData.gameInContent) {
-		if (game == "" && gameId != "") {
+		if (game == "") {
 			game = GetGameFromId(gameId);
 		}
 	}
@@ -443,14 +432,86 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	string token = "&token=" + HostUrlEncode(weirdToken["value"].asString());
 
 	// Second request to get list of *.m3u8 urls.
+	HostPrintUTF8("seil.chu -> start");
+
 	string jsonM3u8 = HostUrlGetString(m3u8Api + sig + token, "", headerClientId);
 	jsonM3u8.replace('"', "");
-
 	string m3 = ".m3u8";
-
 	string sourceQualityUrl = "https://" + HostRegExpParse(jsonM3u8, "https://([a-zA-Z-_.0-9/]+)" + m3) + m3;
 
+	// custom m3u8 api
+	string customM3u8Api = "https://pwn.sh/tools/streamapi.py?url=twitch.tv/" + nickname;
+	string customJsonM3u8 = HostUrlGetString(customM3u8Api);	
+	HostPrintUTF8("customJsonM3u8 : " + customJsonM3u8);
+
+	array<dictionary> qualityAndUrls;
+
+	int lastItag = 10;
+
+	string parse_coutinue = customJsonM3u8;
+	while (true) {
+		array<dictionary> dictionarys;
+
+		bool success = HostRegExpParse(parse_coutinue, "(\"[a-zA-Z-_.0-9]+\": \"https://[a-zA-Z-_.0-9/]+.m3u8\")", dictionarys);
+		if (success) {
+			string keyAndUrl;
+			dictionarys[0].get("first", keyAndUrl);
+
+			string quality = HostRegExpParse(keyAndUrl, "([a-zA-Z-_.0-9]+)");
+			string url = HostRegExpParse(keyAndUrl, "(https://[a-zA-Z-_.0-9/]+.m3u8)");
+
+			dictionary dic;
+			dic.set("first", quality);
+			dic.set("second", url);
+			qualityAndUrls.insertLast(dic);
+
+			string remain;
+			dictionarys[0].get("second", remain);
+			parse_coutinue = remain;
+		}
+		else {
+			break;
+		}
+	}
+
 	if (@QualityList !is null) {
+		for (uint i=0; i<qualityAndUrls.size(); i++) {
+			dictionary qualityAndUrl = qualityAndUrls[i];
+
+			string quality;
+			qualityAndUrl.get("first", quality);
+
+			string url;
+			qualityAndUrl.get("second", url);
+
+			QualityListItem qualityItem;
+
+			int itag = GetITag(quality);
+			qualityItem.itag = itag;
+			qualityItem.quality = quality;
+			qualityItem.qualityDetail = quality;
+			//qualityItem.bitrate = "unknown bps";
+			//qualityItem.resolution = "unknown bps";
+			qualityItem.url = url;
+
+			HostPrintUTF8("seil.chu -> print qualityItem");
+			qualityItem.printString();
+
+			if(itag != -1 && lastItag > itag) {
+				lastItag = itag;
+				sourceQualityUrl = url;
+			}
+
+			QualityList.insertLast(qualityItem.toDictionary());
+		}
+	}
+
+
+	/*
+	// original
+	if (@QualityList !is null) {
+		HostPrintUTF8("seil.chu -> QualityList is not NULL ");
+
 		array<string> arrayOfM3u8 = jsonM3u8.split("#EXT-X-MEDIA:");
 		for (int k = 1, len = arrayOfM3u8.size(); k < len; k++) {
 			string currentM3u8 = arrayOfM3u8[k];
@@ -475,10 +536,14 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 				qualityItem.qualityDetail += ", bitrate " + qualityItem.bitrate;
 			}
 			qualityItem.url = currentQualityUrl;
+
+			HostPrintUTF8("seil.chu -> print qualityItem");
+			qualityItem.printString();
+
 			QualityList.insertLast(qualityItem.toDictionary());
 		}
 	}
-
+	*/
 
 	MetaData["title"] = titleStream + (ConfigData.gameInTitle ? game : "");
 	MetaData["content"] = "— " + titleStream + (ConfigData.gameInContent ? game : "");
