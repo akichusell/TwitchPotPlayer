@@ -432,8 +432,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	string token = "&token=" + HostUrlEncode(weirdToken["value"].asString());
 
 	// Second request to get list of *.m3u8 urls.
-	HostPrintUTF8("seil.chu -> start");
-
 	string jsonM3u8 = HostUrlGetString(m3u8Api + sig + token, "", headerClientId);
 	jsonM3u8.replace('"', "");
 	string m3 = ".m3u8";
@@ -490,12 +488,10 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			qualityItem.itag = itag;
 			qualityItem.quality = quality;
 			qualityItem.qualityDetail = quality;
-			//qualityItem.bitrate = "unknown bps";
-			//qualityItem.resolution = "unknown bps";
 			qualityItem.url = url;
 
-			HostPrintUTF8("seil.chu -> print qualityItem");
-			qualityItem.printString();
+			//HostPrintUTF8("print qualityItem");
+			//qualityItem.printString();
 
 			if(itag != -1 && lastItag > itag) {
 				lastItag = itag;
@@ -510,8 +506,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 	/*
 	// original
 	if (@QualityList !is null) {
-		HostPrintUTF8("seil.chu -> QualityList is not NULL ");
-
 		array<string> arrayOfM3u8 = jsonM3u8.split("#EXT-X-MEDIA:");
 		for (int k = 1, len = arrayOfM3u8.size(); k < len; k++) {
 			string currentM3u8 = arrayOfM3u8[k];
@@ -537,7 +531,6 @@ string PlayitemParse(const string &in path, dictionary &MetaData, array<dictiona
 			}
 			qualityItem.url = currentQualityUrl;
 
-			HostPrintUTF8("seil.chu -> print qualityItem");
 			qualityItem.printString();
 
 			QualityList.insertLast(qualityItem.toDictionary());
